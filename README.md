@@ -38,7 +38,7 @@ python show_graph.py --means imu_means.txt --recording record_imu.txt
 ```
 To see the IMU data visualized with OpenGL, run:
 ```bash
-python gl_imu.py --means imu_means.txt --recording record_imu.txt
+python gl_imu.py --means imu_means.txt
 ```
 and with recorded data:
 
