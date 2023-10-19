@@ -21,7 +21,7 @@ python show_graph.py
 You should see a window appear similar to this:
 ![gif not working](gifs/show_graph.gif)
 
-Notice that the calibration is off. Accelerometer is not at (0,-1g,0) and gyroscope is drifting a lot.
+For your own window, notice that the calibration is off. Accelerometer is not at (0,-1g,0) and gyroscope is drifting a lot.
 To take the IMU calibration into account when visualizing the streamed data, run:
 
 ```bash

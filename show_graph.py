@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.ticker import FormatStrFormatter
 from scipy.constants import g
 import argparse
 import time
@@ -10,9 +11,11 @@ import time
 from get_data import DataSensorleap, DataRecording
 from kalman import KalmanWrapper
 
+save_gif = False
+
 class App:
     def __init__(self):
-        self.fig = plt.figure('IMU data',figsize=(24,15))
+        self.fig = plt.figure('IMU data',figsize=(15,15))
         self.axes = []
         N_figs = 10
         for i in range(1,N_figs):
@@ -85,36 +88,48 @@ class App:
         self.pitch = self.pitch[-x_len:]
         self.yaw = self.yaw[-x_len:]
 
+        xs = np.array(self.xs)
+
+        fs = 12
         for ax in self.axes:
             ax.clear()
-        self.axes[0].plot(self.xs, self.acc_x-means[0],color='b') # why can i subtract scalar from list?
-        self.axes[1].plot(self.xs, self.acc_y-means[1],color='b')
-        self.axes[2].plot(self.xs, self.acc_z-means[2],color='b')
-        self.axes[3].plot(self.xs, self.rads_x-means[3],color='orange')
-        self.axes[4].plot(self.xs, self.rads_y-means[4],color='orange')
-        self.axes[5].plot(self.xs, self.rads_z-means[5],color='orange')
-        self.axes[6].plot(self.xs, self.a_roll,color='blue')
-        self.axes[6].plot(self.xs, self.g_roll,color='orange')
-        self.axes[6].plot(self.xs, self.roll, color='green')
-        self.axes[6].legend(['Accelerometer','Gyroscope','Kalman'],loc='upper left')
-        self.axes[7].plot(self.xs, self.a_pitch,color='blue')
-        self.axes[7].plot(self.xs, self.g_pitch,color='orange')
-        self.axes[7].plot(self.xs, self.pitch, color='green')
-        self.axes[7].legend(['Accelerometer','Gyroscope','Kalman'],loc='upper left')
-        self.axes[8].plot(self.xs, self.g_yaw,color='orange')
-        self.axes[8].plot(self.xs, self.yaw,color='green')
-        self.axes[8].legend(['Gyroscope','Kalman'],loc='upper left')
+        self.axes[0].plot(xs, np.array(self.acc_x)-means[0],color='b')
+        self.axes[1].plot(xs, np.array(self.acc_y)-means[1],color='b')
+        self.axes[2].plot(xs, np.array(self.acc_z)-means[2],color='b')
+        self.axes[3].plot(xs, np.array(self.rads_x)-means[3],color='orange')
+        self.axes[4].plot(xs, np.array(self.rads_y)-means[4],color='orange')
+        self.axes[5].plot(xs, np.array(self.rads_z)-means[5],color='orange')
+        self.axes[6].plot(xs, self.a_roll,color='blue')
+        self.axes[6].plot(xs, self.g_roll,color='orange')
+        self.axes[6].plot(xs, self.roll, color='green')
+        self.axes[6].legend(['Accelerometer','Gyroscope','Kalman'],loc='upper left', fontsize=fs, prop=dict(weight='bold'))
+        self.axes[7].plot(xs, self.a_pitch,color='blue')
+        self.axes[7].plot(xs, self.g_pitch,color='orange')
+        self.axes[7].plot(xs, self.pitch, color='green')
+        self.axes[7].legend(['Accelerometer','Gyroscope','Kalman'],loc='upper left', fontsize=fs, prop=dict(weight='bold'))
+        self.axes[8].plot(xs, self.g_yaw,color='orange')
+        self.axes[8].plot(xs, self.yaw,color='green')
+        self.axes[8].legend(['Gyroscope','Kalman'],loc='upper left', fontsize=fs, prop=dict(weight='bold'))
 
-        self.axes[0].set_ylabel('Acc x') 
-        self.axes[1].set_ylabel('Acc y') 
-        self.axes[2].set_ylabel('Acc z') 
-        self.axes[3].set_ylabel('Gyro x') 
-        self.axes[4].set_ylabel('Gyro y') 
-        self.axes[5].set_ylabel('Gyro z') 
-        self.axes[6].set_ylabel('Roll') 
-        self.axes[7].set_ylabel('Pitch') 
-        self.axes[8].set_ylabel('Yaw') 
-        self.axes[8].set_xlabel('Microseconds since epoch')
+        self.axes[0].set_ylabel('Acc x', fontsize=fs, weight='bold') 
+        self.axes[1].set_ylabel('Acc y', fontsize=fs, weight='bold') 
+        self.axes[2].set_ylabel('Acc z', fontsize=fs, weight='bold') 
+        self.axes[3].set_ylabel('Gyro x', fontsize=fs, weight='bold') 
+        self.axes[4].set_ylabel('Gyro y', fontsize=fs, weight='bold') 
+        self.axes[5].set_ylabel('Gyro z', fontsize=fs, weight='bold') 
+        for ax in self.axes[0:6]:
+            ax.set_ylim([-10,10])
+
+        self.axes[6].set_ylabel('Roll', fontsize=fs, weight='bold') 
+        self.axes[7].set_ylabel('Pitch', fontsize=fs, weight='bold') 
+        self.axes[8].set_ylabel('Yaw', fontsize=fs, weight='bold') 
+        self.axes[8].set_xlabel('Microseconds since epoch', fontsize=fs, weight='bold')
+        for ax in self.axes[6:]:
+            ax.set_ylim([-1,1])
+        for ax in self.axes:
+            ax.xaxis.set_major_locator(plt.MaxNLocator(6))
+        plt.tight_layout() 
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -134,7 +149,14 @@ if __name__ == '__main__':
 
     app = App()
 
-    ani = animation.FuncAnimation(app.fig, app.animate, fargs=(means,args,data), interval=1)
-    plt.show()
+    frames = None
+    if save_gif:
+        frames = 530
+    ani = animation.FuncAnimation(app.fig, app.animate, fargs=(means,args,data), interval=1, frames=frames)
+
+    if save_gif:
+        ani.save(filename = 'show_graph.gif', writer='pillow', fps=20)
+    else:
+        plt.show()
 
 
