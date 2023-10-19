@@ -18,6 +18,8 @@ To stream and visualize the IMU data, run
 ```bash
 python show_graph.py
 ```
+You should see a window appear similar to this:
+![gif not working](gifs/show_graph.gif)
 
 Notice that the calibration is off. Accelerometer is not at (0,-1g,0) and gyroscope is drifting a lot.
 To take the IMU calibration into account when visualizing the streamed data, run:
@@ -36,6 +38,7 @@ To use the recorded data instead of live streamed data, do:
 ```bash
 python show_graph.py --means imu_means.txt --recording record_imu.txt
 ```
+
 To see the IMU data visualized with OpenGL, run:
 ```bash
 python gl_imu.py --means imu_means.txt
