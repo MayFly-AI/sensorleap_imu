@@ -1,8 +1,10 @@
-# sensorleap_imu
+# Sensorleap IMU
 
 This repository contains a demo to stream live IMU data from a sensorleap sensor and to use this data to
 estimate roll, pitch and yaw (assuming constant position). The demo uses a kalman filter to fuse data from the gyroscope
 with the data from the accelerometer.
+
+![gif not working](gifs/gl_imu.gif)
 
 Setup sensorleap sensor with IMU enabled. Guide (TODO)
 

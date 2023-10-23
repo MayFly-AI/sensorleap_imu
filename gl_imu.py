@@ -2,10 +2,10 @@ import numpy as np
 import queue
 import sys
 import os
-import threading
 import time
 import math
 import argparse
+from multiprocessing import Process, Queue
 
 from OpenGL.GL import *
 from OpenGL.GL.ARB import *
@@ -35,7 +35,7 @@ def opengl_init():
         return False
 
     # Open Window and create its OpenGL context
-    window = glfw.create_window(1024, 768, "Tutorial 06", None, None) #(in the accompanying source code this variable will be global)
+    window = glfw.create_window(1024, 768, "IMU GL Demo", None, None) #(in the accompanying source code this variable will be global)
     glfw.window_hint(glfw.SAMPLES, 4)
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
     glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
@@ -313,7 +313,7 @@ def run(q_vis):
         Rz = mat4.identity()
         Rx.rotateX(vis_data[0])
         Ry.rotateY(vis_data[2])
-        Rz.rotateZ(vis_data[1])
+        Rz.rotateZ(-vis_data[1])
         ModelMatrix = Rx.__mul__(Ry).__mul__(Rz)
         
         mvp = ProjectionMatrix * ViewMatrix * ModelMatrix;
@@ -406,7 +406,7 @@ def run(q_vis):
 
         # sleep to render at 60 fps (only use this if this function is running on separate thread)
         t_elapsed = (time.time()-t_start)/1000.
-        print('t_elapsed: ',t_elapsed)
+        #print('t_elapsed: ',t_elapsed)
      #   if t_elapsed > 1000./60.:
      #       time.sleep((1000./60.-t_elapsed)/1000.)
 
@@ -446,9 +446,8 @@ def run_kalman(data, q_vis):
             gz = rads_z[j]-means[5]
             if t_prev is not None:
                 dt = (t_prev-t)/1000000. # microseconds to seconds
-                roll_pitch_yaw = kalman_wrapper([gz,gx,gy,ax,az,ay], dt)
-                q_vis.put(roll_pitch_yaw)
-                time.sleep(1./20.)
+                roll, pitch, yaw = kalman_wrapper([gz,gx,gy,ax,az,ay], dt)
+                q_vis.put([roll,pitch,yaw])
             t_prev = t
 
 if __name__ == "__main__":
@@ -457,9 +456,9 @@ if __name__ == "__main__":
     parser.add_argument('--recording', type=str, required=False)
     args = parser.parse_args()
 
-    q_vis = queue.Queue(10)
-    thread_run = threading.Thread(target=run, args=(q_vis,), daemon=False)
-    thread_run.start()
+    q_vis = Queue(10)
+    p = Process(target=run, args=(q_vis,))
+    p.start()
 
     means = np.zeros([6])
     if args.means is not None:

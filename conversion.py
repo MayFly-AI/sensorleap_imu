@@ -11,8 +11,8 @@ def accelerometer_to_attitude(accelerometer_x, accelerometer_y, accelerometer_z)
 
     # This part is tricky.
     # Assuming the object is hovering, you could use the following equations.
-    roll = np.arcsin(accelerometer_x / g)
-    pitch = -np.arcsin(accelerometer_y / (g * np.cos(roll)))
+    roll = np.arcsin(np.clip(accelerometer_x / g,-0.9999999,0.9999999))
+    pitch = -np.arcsin(np.clip(accelerometer_y / (g * np.cos(roll)),-0.9999999,0.9999999))
 
     # This method works if the accelerometer measures 1g when standing still 
     # mu = 0.001

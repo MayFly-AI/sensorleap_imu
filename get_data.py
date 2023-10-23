@@ -1,24 +1,28 @@
 import numpy as np
+import time
 
-from mayfly.videocapture import VideoCapture
+from mayfly.sensorcapture import SensorCapture
 
 class DataSensorleap:
     def __init__(self):
-        self.cap = VideoCapture(list(range(64)),'')
+        self.cap = SensorCapture(list(range(64)),'')
 
     def get_data(self, ts, acc_x, acc_y, acc_z, rads_x, rads_y, rads_z):
-        frames = self.cap.read()
-        if type(frames) is tuple:
+        capture = self.cap.read()
+        if capture['type'] != 'imu':
             return 0
-        N = len(frames['imu']['t'])
+        tstamps = capture['values']['t']
+        acc = capture['values']['acc']
+        rads = capture['values']['rads']
+        N = len(tstamps)
         for j in range(N):
-            ts.append(frames['imu']['t'][j])
-            acc_x.append(frames['imu']['acc'][j*3+0])
-            acc_y.append(frames['imu']['acc'][j*3+1])
-            acc_z.append(frames['imu']['acc'][j*3+2])
-            rads_x.append(frames['imu']['rads'][j*3+0])
-            rads_y.append(frames['imu']['rads'][j*3+1])
-            rads_z.append(frames['imu']['rads'][j*3+2])
+            ts.append(tstamps[j])
+            acc_x.append(acc[j*3+0])
+            acc_y.append(acc[j*3+1])
+            acc_z.append(acc[j*3+2])
+            rads_x.append(rads[j*3+0])
+            rads_y.append(rads[j*3+1])
+            rads_z.append(rads[j*3+2])
         return N
 
 class DataRecording:
@@ -39,5 +43,5 @@ class DataRecording:
         rads_x.append(float(line[4]))
         rads_y.append(float(line[5]))
         rads_z.append(float(line[6]))
-        #time.sleep(1./50.)
+        time.sleep(1./30.)
         return 1
