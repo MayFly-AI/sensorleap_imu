@@ -1,25 +1,16 @@
 import numpy as np
 from scipy.constants import g
 
-# Rotation sequence -> XYZ
-# roll -> phi
-# pitch -> theta
-# yaw -> omega
+def accelerometer_to_attitude(ax, ay, az):
+    # range: +-pi/2 (+-90 degrees)
+    #roll = np.arcsin(np.clip(-ax / g,-0.9999999,0.9999999))
+    #pitch = np.arcsin(np.clip(ay / (g * np.cos(roll)),-0.9999999,0.9999999))
 
-def accelerometer_to_attitude(accelerometer_x, accelerometer_y, accelerometer_z):
-    """Calculate roll and pitch angles from normalized (calibrated, filtered) accelerometer readings. (Measurement for Kalman) """
-
-    # This part is tricky.
-    # Assuming the object is hovering, you could use the following equations.
-    roll = np.arcsin(np.clip(accelerometer_x / g,-0.9999999,0.9999999))
-    pitch = -np.arcsin(np.clip(accelerometer_y / (g * np.cos(roll)),-0.9999999,0.9999999))
-
-    # This method works if the accelerometer measures 1g when standing still 
-    # mu = 0.001
-    # pitch = np.arctan2(-accelerometer_x, np.sqrt(accelerometer_y**2 + accelerometer_z**2))
-    # roll = np.arctan2(accelerometer_y, np.sign(accelerometer_z) * np.sqrt(accelerometer_z**2 + mu * accelerometer_x**2))
-    # print("NXP:", roll, pitch)
-
+    # range +-pi (+-180 degrees)
+    # needs 1g (redo calibration code to account for this)
+    roll = np.arctan2(-ax, np.sqrt(az**2 + ay**2))
+    pitch = np.arctan2(ay, np.sqrt(ax**2 + az**2))
+ 
     yaw = 0
 
     return roll, pitch, yaw
@@ -35,6 +26,7 @@ def euler_to_quaternion(roll, pitch, yaw):
 
     return q_1, q_2, q_3, q_4
 
+# Body 3-2-1 sequence (yaw -> pitch -> roll)
 def quaternion_to_euler_angles(q_1, q_2, q_3, q_4):
     """Convert Quaternion to Euler angles"""
 
@@ -47,6 +39,25 @@ def quaternion_to_euler_angles(q_1, q_2, q_3, q_4):
     omega = np.arctan2(2 * (q_1 * q_4 + q_2 * q_3), 1 - 2 * (q_3 ** 2 + q_4 ** 2))
 
     return phi, theta, omega
+
+def quaternion_to_rotation_matrix(q0, q1, q2, q3):
+    r00 = 1. - 2.*(q2**2 + q3**2)
+    r01 = 2.*(q1 * q2 - q0 * q3)
+    r02 = 2.*(q1 * q3 + q0 * q2)
+
+    r10 = 2.*(q1 * q2 + q0 * q3)
+    r11 = 1. - 2.*(q1**2 + q3**2)
+    r12 = 2.*(q2 * q3 - q0 * q1)
+
+    r20 = 2.*(q1 * q3 - q0 * q2)
+    r21 = 2.*(q2 * q3 + q0 * q1)
+    r22 = 1. - 2.*(q1**2 + q2**2)
+
+    rot_matrix = np.array([[r00, r01, r02, 0.],
+                           [r10, r11, r12, 0.],
+                           [r20, r21, r22, 0.],
+                           [0.,  0.,  0.,  1.]])
+    return rot_matrix
 
 def gyro_transition_matrix(gyro_phi, gyro_theta, gyro_omega, delta_t):
     """

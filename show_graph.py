@@ -8,13 +8,17 @@ from scipy.constants import g
 import argparse
 import time
 from multiprocessing import Process, Queue
+import glm
 
 from get_data import DataSensorleap, DataRecording
 from kalman import KalmanWrapper
+#from conversion import quaternion_to_euler_angles
+from conversion import accelerometer_to_attitude
+
 
 save_gif = False
 
-def capture_and_compute(q_plot, means, args):
+def capture_and_compute(q_plot, calib, args):
     if args.record:
         record_file = open('record_imu.txt','w')
     if args.recording is None:
@@ -47,25 +51,33 @@ def capture_and_compute(q_plot, means, args):
                         str(self.acc_z[-j])+' '+str(self.rads_x[-j])+' '+str(self.rads_y[-j])+
                         ' '+str(self.rads_z[-j])+'\n')
 
-            ax = acc_x[-j]-means[0]
-            ay = acc_y[-j]-means[1] # y is down
-            az = acc_z[-j]-means[2] 
-            gx = rads_x[-j]-means[3]
-            gy = rads_y[-j]-means[4]
-            gz = rads_z[-j]-means[5]
+            ax = acc_x[-j]-calib[0]
+            ay = acc_y[-j]-calib[1] # y is down
+            az = acc_z[-j]-calib[2] 
+            gx = rads_x[-j]-calib[3]
+            gy = rads_y[-j]-calib[4]
+            gz = rads_z[-j]-calib[5]
 
-            a_roll.append(np.arcsin(ax / g))
-            a_pitch.append(-np.arcsin(az / (g * np.cos(a_roll[-1]))))
+            a_roll_j, a_pitch_j, _ = accelerometer_to_attitude(ax,az,ay)
+            a_roll.append(a_roll_j)
+            a_pitch.append(a_pitch_j)
             if len(xs) > N or j < N:
-                dt = (xs[-(j+1)]-xs[-j])/1000000. # microseconds to seconds
-                g_roll.append(g_roll[-1] + gz*dt) # pitch and roll 
+                dt = (xs[-j]-xs[-(j+1)])/1000000. # microseconds to seconds
+                g_roll.append(g_roll[-1] + gz*dt) 
                 g_pitch.append(g_pitch[-1] + gx*dt)
                 g_yaw.append(g_yaw[-1] + gy*dt)
 
-                ret = kalman_wrapper([gz,gx,gy,ax,az,ay], dt)
-                roll.append(ret[0])
-                pitch.append(ret[1])
-                yaw.append(ret[2])
+                Q = kalman_wrapper([gx,gy,gz,ax,az,ay], dt)
+                Q = glm.quat(*Q) # convert to GLM quat
+                Q = glm.normalize(Q)
+                euler = glm.eulerAngles(Q) # pitch, yaw, roll
+                #phi, theta, omega = quaternion_to_euler_angles(*q)
+                #roll.append(phi)
+                #pitch.append(theta)
+                #yaw.append(omega)
+                roll.append(euler.z)
+                pitch.append(euler.x)
+                yaw.append(euler.y)
 
         x_len = 200
         xs = xs[-x_len:]
@@ -102,19 +114,19 @@ class AnimatedPlot:
         for i in range(1,N_figs):
             self.axes.append(self.fig.add_subplot(N_figs-1, 1, i))
 
-    def animate(self, i, q_plot, means, args):
+    def animate(self, i, q_plot, calib, args):
         xs, acc_x, acc_y, acc_z, rads_x, rads_y, rads_z,\
                 a_roll, a_pitch, g_roll, g_pitch, g_yaw, roll, pitch, yaw = q_plot.get()
 
         fs = 12
         for ax in self.axes:
             ax.clear()
-        self.axes[0].plot(xs, acc_x-means[0],color='b')
-        self.axes[1].plot(xs, acc_y-means[1],color='b')
-        self.axes[2].plot(xs, acc_z-means[2],color='b')
-        self.axes[3].plot(xs, rads_x-means[3],color='orange')
-        self.axes[4].plot(xs, rads_y-means[4],color='orange')
-        self.axes[5].plot(xs, rads_z-means[5],color='orange')
+        self.axes[0].plot(xs, acc_x-calib[0],color='b')
+        self.axes[1].plot(xs, acc_y-calib[1],color='b')
+        self.axes[2].plot(xs, acc_z-calib[2],color='b')
+        self.axes[3].plot(xs, rads_x-calib[3],color='orange')
+        self.axes[4].plot(xs, rads_y-calib[4],color='orange')
+        self.axes[5].plot(xs, rads_z-calib[5],color='orange')
         self.axes[6].plot(xs, a_roll,color='blue')
         self.axes[6].plot(xs, g_roll,color='orange')
         self.axes[6].plot(xs, roll, color='green')
@@ -132,8 +144,8 @@ class AnimatedPlot:
         self.axes[3].set_ylabel('Gyro x', fontsize=fs, weight='bold') 
         self.axes[4].set_ylabel('Gyro y', fontsize=fs, weight='bold') 
         self.axes[5].set_ylabel('Gyro z', fontsize=fs, weight='bold') 
-        for ax in self.axes[0:6]:
-            ax.set_ylim([-10,10])
+        #for ax in self.axes[0:6]:
+        #    ax.set_ylim([-10,10])
 
         self.axes[6].set_ylabel('Roll', fontsize=fs, weight='bold') 
         self.axes[7].set_ylabel('Pitch', fontsize=fs, weight='bold') 
@@ -148,17 +160,17 @@ class AnimatedPlot:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--means', type=str, required=False)
+    parser.add_argument('--calib', type=str, required=False)
     parser.add_argument('--record', required=False, action='store_true')
     parser.add_argument('--recording', type=str, required=False)
     args = parser.parse_args()
-    means = np.zeros([6])
-    if args.means is not None:
-        means = np.loadtxt(args.means)
-        print('Loaded means',means)
+    calib = np.zeros([6])
+    if args.calib is not None:
+        calib = np.loadtxt(args.calib)
+        print('Loaded calibration values:',calib)
 
     q_plot = Queue(1)
-    p = Process(target=capture_and_compute, args=(q_plot,means,args,))
+    p = Process(target=capture_and_compute, args=(q_plot,calib,args,))
     p.start()
 
     aniplot = AnimatedPlot()
@@ -166,7 +178,7 @@ if __name__ == '__main__':
     frames = None
     if save_gif:
         frames = 530
-    ani = animation.FuncAnimation(aniplot.fig, aniplot.animate, fargs=(q_plot,means,args), interval=1, frames=frames)
+    ani = animation.FuncAnimation(aniplot.fig, aniplot.animate, fargs=(q_plot,calib,args), interval=1, frames=frames)
 
     if save_gif:
         ani.save(filename = 'show_graph.gif', writer='pillow', fps=20)

@@ -1,16 +1,12 @@
 #! /usr/bin/env python
-""" Tutorial 5: Textured Cube
-"""
-from __future__ import print_function
-
 from OpenGL.GL import *
-from csgl import *
+import glm
 
 import glfw
 import math as mathf
 
-ViewMatrix = mat4.fill(0)
-ProjectionMatrix = mat4.fill(0)
+ViewMatrix = glm.mat4()
+ProjectionMatrix = glm.mat4()
 
 def getViewMatrix():
     return ViewMatrix
@@ -21,7 +17,8 @@ def getProjectionMatrix():
 
 #position = vec3( 0, 0, 5 )
 #position = vec3( 0, 2.5, 8 ) #MAX
-position = vec3( 8, 2.5, 0 ) #MAX looking at our model from +X
+#position = vec3( 8, 2.5, 0 ) #MAX looking at our model from +X
+position = glm.vec3( 8, 2.5, 0 ) #MAX looking at our model from +X
 # Initial horizontal angle : toward -Z
 #horizontalAngle = 3.14
 horizontalAngle = 1.5*3.14 #MAX
@@ -77,21 +74,21 @@ def computeMatricesFromInputs(window):
         verticalAngle += deltaTime * speed * 0.2
 
     # Direction : Spherical coordinates to Cartesian coordinates conversion
-    direction = vec3(
+    direction = glm.vec3(
         mathf.cos(verticalAngle) * mathf.sin(horizontalAngle), 
         mathf.sin(verticalAngle),
         mathf.cos(verticalAngle) * mathf.cos(horizontalAngle)
     )
     
     # Right vector
-    right = vec3(
+    right = glm.vec3(
         mathf.sin(horizontalAngle - 3.14/2.0), 
         0.0,
         mathf.cos(horizontalAngle - 3.14/2.0)
     )
-    
+
     # Up vector
-    up = vec3.cross( right, direction )
+    up = glm.cross( right, direction )
 
     # Move forward
     if glfw.get_key( window, glfw.KEY_W ) == glfw.PRESS:
@@ -121,9 +118,9 @@ def computeMatricesFromInputs(window):
     FoV = initialFoV# - 5 * glfwGetMouseWheel(); # Now GLFW 3 requires setting up a callback for this. It's a bit too complicated for this beginner's tutorial, so it's disabled instead.
 
     # Projection matrix : 45 Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
-    ProjectionMatrix = mat4.perspective(FoV, 4.0 / 3.0, 0.1, 100.0)
+    ProjectionMatrix = glm.perspective(glm.radians(FoV), 4.0 / 3.0, 0.1, 100.0)
     # Camera matrix
-    ViewMatrix       = mat4.lookat(
+    ViewMatrix       = glm.lookAt(
                                 position,           # Camera is here
                                 position+direction, # and looks here : at the same position, plus "direction"
                                 up                  # Head is up (set to 0,-1,0 to look upside-down)

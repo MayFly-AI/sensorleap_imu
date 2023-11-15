@@ -15,13 +15,16 @@ from OpenGL.GLUT.special import *
 from OpenGL.GL.shaders import *
 import glfw
 
-from csgl import *
 import common
-import controls_no_mouse
+import controls
 import cylinder
+import box
 
 from get_data import DataSensorleap, DataRecording
 from kalman import KalmanWrapper
+from conversion import accelerometer_to_attitude
+
+import glm
 
 # Global window
 window = None
@@ -49,13 +52,6 @@ def opengl_init():
 
     # Initialize GLEW
     glfw.make_context_current(window)
- #   glewExperimental = True
-
-    # GLEW is a framework for testing extension availability.  Please see tutorial notes for
-    # more information including why can remove this code.a
- #   if glewInit() != GLEW_OK:
- #       print("Failed to initialize GLEW\n",file=sys.stderr);
- #       return False
     return True
 
 def floor(Nx,Nz,min_x,max_x,min_z,max_z):
@@ -95,83 +91,11 @@ def floor(Nx,Nz,min_x,max_x,min_z,max_z):
     colors = np.array(colors).flatten()
     return vertices, colors
 
-def box(pos):
-    vertices = []
-    colors = []
-
-    vertices = [-1.,-1.,-1.,
-                -1.,-1., 1.,
-                -1., 1., 1., 
-                1., 1.,-1., 
-                -1.,-1.,-1.,
-                -1., 1.,-1.,
-                1.,-1., 1.,
-                -1.,-1.,-1.,
-                1.,-1.,-1.,
-                1., 1.,-1.,
-                1.,-1.,-1.,
-                -1.,-1.,-1.,
-                -1.,-1.,-1.,
-                -1., 1., 1.,
-                -1., 1.,-1.,
-                1.,-1., 1.,
-                -1.,-1., 1.,
-                -1.,-1.,-1.,
-                -1., 1., 1.,
-                -1.,-1., 1.,
-                1.,-1., 1.,
-                1., 1., 1.,
-                1.,-1.,-1.,
-                1., 1.,-1.,
-                1.,-1.,-1.,
-                1., 1., 1.,
-                1.,-1., 1.,
-                1., 1., 1.,
-                1., 1.,-1.,
-                -1., 1.,-1.,
-                1., 1., 1.,
-                -1., 1.,-1.,
-                -1., 1., 1.,
-                1., 1., 1.,
-                -1., 1., 1.,
-                1.,-1., 1.]
-    vertices_lines = [-1.,-1.,-1., # face
-                      -1.,-1.,1.,
-                      -1.,-1.,-1.,
-                      -1.,1.,-1.,
-                      -1.,-1.,1.,
-                      -1.,1.,1.,
-                      -1.,1.,1.,
-                      -1.,1.,-1.,
-                      
-                      1.,1.,1., #face
-                      1.,1.,-1,
-                      1.,1.,1.,
-                      1.,-1,1.,
-                      1.,1.,-1.,
-                      1.,-1,-1.,
-                      1,-1,1,
-                      1,-1,-1,
-                      
-                      1,1,1, # connecting lines between faces
-                      -1,1,1,
-                      1,-1,1,
-                      -1,-1,1,
-                      1,1,-1,
-                      -1,1,-1,
-                      1,-1,-1,
-                      -1,-1,-1
-                      ]
-        
-    vertices = np.array(vertices)
-    vertices_lines = np.array(vertices_lines)
-    colors = np.ones([vertices.shape[0]])*0.5
-    colors_lines = np.ones([vertices_lines.shape[0]])*0.
-    return vertices, vertices_lines, colors, colors_lines    
-
 def triangles_and_lines_for_camera():
-    box_vertices, box_vertices_lines, box_colors, box_colors_lines = box(0) 
-    v, v_lines = cylinder.cylinder(np.array([2.,0.,0.]), np.array([1.01,0.,0.]), 0.5, 0.5)
+    # -1,1 box at (0,0,0)
+    box_vertices, box_vertices_lines, box_colors, box_colors_lines = box.box() 
+    # cylinder bug when x_top == x_base. therefore following hack (fix this)
+    v, v_lines = cylinder.cylinder(np.array([0.00001,0.,-1.01]), np.array([0.00002,0,-2.]), 0.5, 0.5)
 
     vertex_data = []
     vertex_data_lines = []
@@ -294,33 +218,40 @@ def run(q_vis):
     #common.disable_vsyc()
     
     vis_data = np.zeros([3],dtype=np.float32) # roll, pitch and yaw
-
+    
+    tmp = 0.
     while glfw.get_key(window,glfw.KEY_ESCAPE) != glfw.PRESS and not glfw.window_should_close(window):
         t_start = time.time()
         glClear(GL_COLOR_BUFFER_BIT| GL_DEPTH_BUFFER_BIT)
 
         glUseProgram(program_id)
 
-        controls_no_mouse.computeMatricesFromInputs(window)
-        ProjectionMatrix = controls_no_mouse.getProjectionMatrix();
-        ViewMatrix = controls_no_mouse.getViewMatrix();
-        ModelMatrix = mat4.identity();
-
+        controls.computeMatricesFromInputs(window)
+        ProjectionMatrix = controls.getProjectionMatrix();
+        ViewMatrix = controls.getViewMatrix();
+ 
         if not q_vis.empty():
             vis_data = q_vis.get()
-        Rx = mat4.identity()
-        Ry = mat4.identity()
-        Rz = mat4.identity()
-        Rx.rotateX(vis_data[0])
-        Ry.rotateY(vis_data[2])
-        Rz.rotateZ(-vis_data[1])
-        ModelMatrix = Rx.__mul__(Ry).__mul__(Rz)
-        
-        mvp = ProjectionMatrix * ViewMatrix * ModelMatrix;
+
+        if False: # quat to euler to rotation matrix
+            euler = glm.eulerAngles(vis_data) # pitch, yaw, roll
+            rot_matrix = glm.mat4() #identity
+            rot_matrix = glm.rotate(rot_matrix, euler.x, glm.vec3(1., 0., 0.))
+            rot_matrix = glm.rotate(rot_matrix, euler.y, glm.vec3(0., 1., 0.))
+            rot_matrix = glm.rotate(rot_matrix, euler.z, glm.vec3(0., 0., 1.))
+        else: # quat to rotation matrix
+            Q = vis_data
+            rot_matrix = glm.mat4(Q)
+
+        #rot_matrix = glm.mat4() #identity
+        #rot_matrix = glm.rotate(rot_matrix, tmp, glm.vec3(1., 0., 0.))
+        #tmp += 0.001
+
+        mvp = ProjectionMatrix * ViewMatrix * rot_matrix;
 
         # Send our transformation to the currently bound shader, 
         # in the "MVP" uniform
-        glUniformMatrix4fv(matrix_id, 1, GL_FALSE,mvp.data)
+        glUniformMatrix4fv(matrix_id, 1, GL_FALSE,glm.value_ptr(mvp))
        
         if not q_vis.empty():
             vertex_data, vertex_data_lines, color_data, color_data_lines = all_stuff_to_draw()
@@ -438,21 +369,65 @@ def run_kalman(data, q_vis):
             time.sleep(1./100.)
         for j in range(N):
             t = ts[j]
-            ax = acc_x[j]-means[0]
-            ay = acc_y[j]-means[1]
-            az = acc_z[j]-means[2]
-            gx = rads_x[j]-means[3]
-            gy = rads_y[j]-means[4]
-            gz = rads_z[j]-means[5]
+            ax = acc_x[j]-calib[0]
+            ay = acc_y[j]-calib[1]
+            az = acc_z[j]-calib[2]
+            gx = rads_x[j]-calib[3]
+            gy = rads_y[j]-calib[4]
+            gz = rads_z[j]-calib[5]
             if t_prev is not None:
-                dt = (t_prev-t)/1000000. # microseconds to seconds
-                roll, pitch, yaw = kalman_wrapper([gz,gx,gy,ax,az,ay], dt)
-                q_vis.put([roll,pitch,yaw])
+                dt = (t-t_prev)/1000000. # microseconds to seconds
+                Q = kalman_wrapper([gx,gy,gz,ax,az,ay], dt)
+
+                Q = glm.quat(*Q) # convert to GLM quat
+                Q = glm.normalize(Q)
+                q_vis.put(Q)
             t_prev = t
+
+def run_unfiltered(data, q_vis):
+    t_prev = None
+    g_roll = 0.
+    g_pitch = 0.
+    g_yaw = 0.
+    while True:
+        ts = []
+        acc_x = []
+        acc_y = []
+        acc_z = []
+        rads_x = []
+        rads_y = []
+        rads_z = []
+        N = data.get_data(ts, acc_x, acc_y, acc_z, rads_x, rads_y, rads_z)
+
+        if N == 0:
+            time.sleep(1./100.)
+        for j in range(N):
+            t = ts[j]
+            ax = acc_x[j]-calib[0]
+            ay = acc_y[j]-calib[1]
+            az = acc_z[j]-calib[2]
+            gx = rads_x[j]-calib[3]
+            gy = rads_y[j]-calib[4]
+            gz = rads_z[j]-calib[5]
+            if t_prev is not None:
+                dt = (t-t_prev)/1000000. # microseconds to seconds
+
+                a_roll, a_pitch, _ = accelerometer_to_attitude(ax,az,ay)
+
+                g_roll = g_roll + gz*dt
+                g_pitch = g_pitch + gx*dt
+                g_yaw = g_yaw + gy*dt
+
+                Q = glm.quat(glm.vec3(g_pitch, g_yaw, g_roll))
+                #Q = glm.quat(glm.vec3(a_pitch, g_yaw, a_roll))
+                Q = glm.normalize(Q)
+                q_vis.put(Q)
+            t_prev = t
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--means', type=str, required=False)
+    parser.add_argument('--calib', type=str, required=False)
     parser.add_argument('--recording', type=str, required=False)
     args = parser.parse_args()
 
@@ -460,10 +435,10 @@ if __name__ == "__main__":
     p = Process(target=run, args=(q_vis,))
     p.start()
 
-    means = np.zeros([6])
-    if args.means is not None:
-        means = np.loadtxt(args.means)
-        print('Loaded means',means)
+    calib = np.zeros([6])
+    if args.calib is not None:
+        calib = np.loadtxt(args.calib)
+        print('Loaded calibration values:',calib)
 
     if args.recording is None:
         data = DataSensorleap()
@@ -471,5 +446,6 @@ if __name__ == "__main__":
         data = DataRecording(args.recording)
 
     run_kalman(data, q_vis)
+    #run_unfiltered(data, q_vis)
 
 

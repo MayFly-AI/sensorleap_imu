@@ -71,11 +71,11 @@ class KalmanWrapper:
         self.kalman.update_state_transition(self.F)
         self.kalman.predict()
 
-        z = euler_to_quaternion(*accelerometer_to_attitude(inp[3], inp[4], inp[5]))
+        roll, pitch, yaw = accelerometer_to_attitude(inp[3], inp[4], inp[5])
+        z = euler_to_quaternion(pitch, yaw, roll)
+
         x = self.kalman.correct(z)
         x = normalize_quaternion(*x)
         self.kalman.normalize_x(x)
 
-        phi, theta, omega = quaternion_to_euler_angles(*x)
-
-        return phi, theta, omega   
+        return x.copy()
