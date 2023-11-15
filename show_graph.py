@@ -12,9 +12,7 @@ import glm
 
 from get_data import DataSensorleap, DataRecording
 from kalman import KalmanWrapper
-#from conversion import quaternion_to_euler_angles
 from conversion import accelerometer_to_attitude
-
 
 save_gif = False
 
@@ -71,10 +69,6 @@ def capture_and_compute(q_plot, calib, args):
                 Q = glm.quat(*Q) # convert to GLM quat
                 Q = glm.normalize(Q)
                 euler = glm.eulerAngles(Q) # pitch, yaw, roll
-                #phi, theta, omega = quaternion_to_euler_angles(*q)
-                #roll.append(phi)
-                #pitch.append(theta)
-                #yaw.append(omega)
                 roll.append(euler.z)
                 pitch.append(euler.x)
                 yaw.append(euler.y)
@@ -115,6 +109,7 @@ class AnimatedPlot:
             self.axes.append(self.fig.add_subplot(N_figs-1, 1, i))
 
     def animate(self, i, q_plot, calib, args):
+        print('i',i)
         xs, acc_x, acc_y, acc_z, rads_x, rads_y, rads_z,\
                 a_roll, a_pitch, g_roll, g_pitch, g_yaw, roll, pitch, yaw = q_plot.get()
 
@@ -181,7 +176,7 @@ if __name__ == '__main__':
     ani = animation.FuncAnimation(aniplot.fig, aniplot.animate, fargs=(q_plot,calib,args), interval=1, frames=frames)
 
     if save_gif:
-        ani.save(filename = 'show_graph.gif', writer='pillow', fps=20)
+        ani.save(filename = 'show_graph.gif', writer='pillow', fps=5)
     else:
         plt.show()
 
